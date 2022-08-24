@@ -21,11 +21,7 @@ import {readFileSync} from 'fs';
 
 const data = readFileSync('.config/appConfig.json');
 let appConfig = JSON.parse(data)
-let hostname;
-let basePath;
 let playerName = 'WY__';
-
-const FEATURE_1 = 'list-active-projects';
 
 const sleep = (ms = 2000) => new Promise((r) => setTimeout(r, ms));
 
@@ -73,7 +69,7 @@ async function askForFeatures() {
         message: 'What you are going to do / check?\n',
         choices: appConfig.features,
     });
-    appConfig.actions.push(123)
+    appConfig.selected.push(answers.choose_features)
     return handleAnswer(answers.choose_features);
 }
 
@@ -111,8 +107,33 @@ async function handleAnswer(answer) {
     }
 }
 
+function execute(feature) {
+    for (const featureOption of appConfig.featureOptions) {
+        if (featureOption.type === feature.type) {
+            if (feature.type === 'api') {
+                for (const question of featureOption.questions) {
+                    for (let i = 0; i < question.numberOfCall; i++) {
+                        console.log(question)
+                    }
+                }
+            }
+        }
+    }
+}
+
 async function takeAction() {
-    console.log(appConfig.actions)
+    for (const feature of appConfig.features) {
+        for (const select of appConfig.selected) {
+            if (feature.name === select) {
+                execute(feature)
+            }
+        }
+    }
+
+    // console.log(appConfig)
+    // console.log(appConfig.featureOptions)
+    // console.log(appConfig.featureOptions.questions)
+    // console.log(appConfig.selected)
 }
 
 

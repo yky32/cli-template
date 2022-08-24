@@ -2,15 +2,10 @@
   "features": [
     {
       "name": "Make a REST call",
-      "type": "api"
+      "type": "api",
+      "actions": []
     }
   ],
   "featureOptions": [],
-  "actions": [
-    {
-      "name": "Make a REST call",
-      "type": "api",
-      "action": []
-    }
-  ]
+  "selected": []
 }

@@ -27,14 +27,9 @@ const sleep = (ms = 2000) => new Promise((r) => setTimeout(r, ms));
 
 async function init () {
     // load config
-    const _featureOptions = readFileSync('.config/features/featureOptions.json');
-    let featureOptions = JSON.parse(_featureOptions)
-
-    for (const feature of appConfig.features) {
-        featureOptions.name = feature.name
-        featureOptions.type = feature.type
-        appConfig.featureOptions.push(featureOptions)
-    }
+    const _featureMapping = readFileSync('.config/features/featureMapping.json');
+    let featureMapping = JSON.parse(_featureMapping)
+    appConfig.featureMapping = featureMapping
 }
 
 async function welcome() {
@@ -69,78 +64,57 @@ async function askForFeatures() {
         message: 'What you are going to do / check?\n',
         choices: appConfig.features,
     });
-    appConfig.selected.push(answers.choose_features)
     return handleAnswer(answers.choose_features);
 }
 
-
-async function loopAndAskJsonObject(jsonObject) {
-    for (let fieldName in jsonObject) {
-        // Ask input
-        let answer = await askQuestionForInput(fieldName)
-        if (answer) {
-            jsonObject[fieldName] = answer
-        }
-        if (typeof jsonObject[fieldName] === 'object') {
-            await loopAndAskJsonObject(jsonObject[fieldName])
-        }
-    }
-}
-
 async function handleAnswer(answer) {
+    console.log('-- you selected: ', answer)
     const spinner = createSpinner('Checking answer...').start();
     await sleep();
-
-    for (const featureOption of appConfig.featureOptions) {
-        if (featureOption.name === answer) {
+    for (const feature of appConfig.features) {
+        if (feature.name === answer) {
             spinner.success({text: `Nice work ${playerName}. That's a legit answer`});
-            // take out the questions to ask ppl
-            for (let questionObject of featureOption.questions) {
-                await loopAndAskJsonObject(questionObject)
-            }
-            // end of asking, review the answer
-            console.log("=> featureOption.questions ->", featureOption.questions);
+            appConfig.selected.push(feature.key)
         } else {
             spinner.error({text: `💀💀💀 Game over, thank you ${playerName}!`});
             process.exit(1);
         }
     }
-}
-
-function execute(feature) {
-    for (const featureOption of appConfig.featureOptions) {
-        if (featureOption.type === feature.type) {
-            if (feature.type === 'api') {
-                for (const question of featureOption.questions) {
-                    for (let i = 0; i < question.numberOfCall; i++) {
-                        console.log(question)
-                    }
-                }
+    // find question to ask
+    let questions = []
+    for (const key of appConfig.selected) {
+        questions = appConfig.featureMapping[key]
+        appConfig.actionPlan[key] = {}
+    }
+    for (const key of appConfig.selected) {
+        for (const question of questions) {
+            let answer = await askQuestionForInput(question);
+            if (answer) {
+                let answerObject = appConfig.actionPlan[key]
+                answerObject[question] = answer
             }
         }
     }
+    // print out setting____
+    console.log('-- appConfig: ', appConfig)
 }
 
 async function takeAction() {
-    for (const feature of appConfig.features) {
-        for (const select of appConfig.selected) {
-            if (feature.name === select) {
-                execute(feature)
+    for (const key of appConfig.selected) {
+        if (key=== 'api') {
+            let config = appConfig.actionPlan[key]
+            for (let i = 0; i < config.numberOfCall; i++) {
+                let response = await axios.get(config.url);
+                if (response) console.log(response.data)
             }
         }
     }
-
-    // console.log(appConfig)
-    // console.log(appConfig.featureOptions)
-    // console.log(appConfig.featureOptions.questions)
-    // console.log(appConfig.selected)
 }
-
 
 
 // Run it with top-level await
 console.clear();
 await init();
 await welcome();
-await askForFeatures();
-await takeAction()
+await askForFeatures(); // also askQuestions
+await takeAction();

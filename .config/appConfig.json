@@ -2,10 +2,10 @@
   "features": [
     {
       "name": "Make a REST call",
-      "type": "api",
-      "actions": []
+      "key": "api"
     }
   ],
-  "featureOptions": [],
-  "selected": []
+  "featureMapping": {},
+  "selected": [],
+  "actionPlan": {}
 }

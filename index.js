@@ -12,77 +12,114 @@
 // |__/      |______/|__/  |__/|________/ \______/ |__/  |__/|______/|__/|__/  |__/ \______/
 // */
 
-
 import chalk from 'chalk';
 import inquirer from 'inquirer';
-import gradient from 'gradient-string';
 import chalkAnimation from 'chalk-animation';
-import figlet from 'figlet';
-import { createSpinner } from 'nanospinner';
+import {createSpinner} from 'nanospinner';
 import axios from "axios";
+import {readFileSync} from 'fs';
 
-const hostname = 'http://localhost:9000'
-const basePath = '/cron-jobs'
+const data = readFileSync('.config/appConfig.json');
+let appConfig = JSON.parse(data)
+let hostname;
+let basePath;
+let playerName = 'WY__';
+
 const FEATURE_1 = 'list-active-projects';
-const FEATURE_2 = 'do-raffle';
-let playerName;
 
 const sleep = (ms = 2000) => new Promise((r) => setTimeout(r, ms));
 
-async function welcome() {
-  const rainbowTitle = chalkAnimation.rainbow(
-    'Welcome to Wayne Yu cli ?'
-  );
-  await sleep();
-  rainbowTitle.stop();
+async function init () {
+    // load config
+    const _featureOptions = readFileSync('.config/features/featureOptions.json');
+    let featureOptions = JSON.parse(_featureOptions)
 
-  console.log(`
+    for (const feature of appConfig.features) {
+        featureOptions.name = feature.name
+        featureOptions.type = feature.type
+        appConfig.featureOptions.push(featureOptions)
+    }
+}
+
+async function welcome() {
+    const rainbowTitle = chalkAnimation.rainbow(
+        'Welcome to Wayne Yu cli ?'
+    );
+    await sleep();
+    rainbowTitle.stop();
+
+    console.log(`
     ${chalk.bgBlue('HOW TO PLAY - Please select below')} 
     I am a process on your computer.
   `);
 }
 
-async function question1() {
-  const answers = await inquirer.prompt({
-    name: 'question_1',
-    type: 'list',
-    message: 'What you are going to do / check?\n',
-    choices: [
-      FEATURE_1,
-      FEATURE_2
-    ],
-  });
-
-  return handleAnswer(answers.question_1);
+async function askQuestionForInput(questionName) {
+    const answers = await inquirer.prompt({
+        name: "player_input",
+        type: 'input',
+        message: 'What is ' + questionName + '?',
+        default() {
+            return '--';
+        },
+    });
+    return answers.player_input;
 }
 
+async function askForFeatures() {
+    const answers = await inquirer.prompt({
+        name: 'choose_features',
+        type: 'list',
+        message: 'What you are going to do / check?\n',
+        choices: appConfig.features,
+    });
+    appConfig.actions.push(123)
+    return handleAnswer(answers.choose_features);
+}
+
+
+async function loopAndAskJsonObject(jsonObject) {
+    for (let fieldName in jsonObject) {
+        // Ask input
+        let answer = await askQuestionForInput(fieldName)
+        if (answer) {
+            jsonObject[fieldName] = answer
+        }
+        if (typeof jsonObject[fieldName] === 'object') {
+            await loopAndAskJsonObject(jsonObject[fieldName])
+        }
+    }
+}
 
 async function handleAnswer(answer) {
-  const spinner = createSpinner('Checking answer...').start();
-  await sleep();
+    const spinner = createSpinner('Checking answer...').start();
+    await sleep();
 
-  if (answer === FEATURE_1) {
-    console.log(answer === FEATURE_1)
-    spinner.success({ text: `Nice work ${playerName}. That's a legit answer` });
-    let resp = await axios.get(hostname + basePath + '/' + FEATURE_1);
-    console.log(resp.data)
-  }
-
-  else if (answer === FEATURE_2) {
-    console.log(answer === FEATURE_2)
-    spinner.success({ text: `Nice work ${playerName}. That's a legit answer` });
-    let resp = await axios.get(hostname + basePath + '/' + FEATURE_2);
-    console.log(resp.data)
-  }
-
-  else {
-    console.log(answer)
-    spinner.error({ text: `💀💀💀 Game over, you lose ${playerName}!` });
-    process.exit(1);
-  }
+    for (const featureOption of appConfig.featureOptions) {
+        if (featureOption.name === answer) {
+            spinner.success({text: `Nice work ${playerName}. That's a legit answer`});
+            // take out the questions to ask ppl
+            for (let questionObject of featureOption.questions) {
+                await loopAndAskJsonObject(questionObject)
+            }
+            // end of asking, review the answer
+            console.log("=> featureOption.questions ->", featureOption.questions);
+        } else {
+            spinner.error({text: `💀💀💀 Game over, thank you ${playerName}!`});
+            process.exit(1);
+        }
+    }
 }
+
+async function takeAction() {
+    console.log(appConfig.actions)
+}
+
+
 
 // Run it with top-level await
 console.clear();
+await init();
 await welcome();
-await question1();
+await askForFeatures();
+await takeAction()

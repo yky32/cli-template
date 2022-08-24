@@ -1,0 +1,16 @@
+{
+  "features": [
+    {
+      "name": "Make a REST call",
+      "type": "api"
+    }
+  ],
+  "featureOptions": [],
+  "actions": [
+    {
+      "name": "Make a REST call",
+      "type": "api",
+      "action": []
+    }
+  ]
+}

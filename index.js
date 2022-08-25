@@ -13,7 +13,7 @@
 // */
 
 import chalk from 'chalk';
-import inquirer from 'inquirer';
+import inquirer, {prompt} from 'inquirer';
 import chalkAnimation from 'chalk-animation';
 import {createSpinner} from 'nanospinner';
 import axios from "axios";
@@ -45,7 +45,26 @@ async function welcome() {
   `);
 }
 
+async function promptList() {
+    const answers = await inquirer.prompt(
+        {
+            name: "player_input",
+            type: 'list',
+            message: 'What is ' + questionName + '?',
+            choices: ['alligator', 'crocodile'],
+            default() {
+                return '--';
+        },
+    });
+    return answers.player_input;
+}
+
 async function askQuestionForInput(questionName) {
+
+    if (questionName === 'METHOD') {
+
+    }
+
     const answers = await inquirer.prompt({
         name: "player_input",
         type: 'input',
@@ -104,8 +123,15 @@ async function takeAction() {
         if (key=== 'api') {
             let config = appConfig.actionPlan[key]
             for (let i = 0; i < config.numberOfCall; i++) {
-                let response = await axios.get(config.url);
-                if (response) console.log(response.data)
+                let response
+                if (config.method === 'GET') {
+                    response = await axios.get(config.url);
+                    if (response) console.log(response.data)
+                } else if (config.method === 'POST') {
+                    response = await axios.post(config.url, config.payload);
+                } else {
+                    // invalid method
+                }
             }
         }
     }

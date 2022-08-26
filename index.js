@@ -17,16 +17,23 @@ import inquirer  from 'inquirer';
 import chalkAnimation from 'chalk-animation';
 import {createSpinner} from 'nanospinner';
 import axios from "axios";
-import {readFileSync} from 'fs';
+import {readFileSync, writeFileSync} from 'fs';
+import moment from "moment";
 
-
+// GLOBAL VARIABLE __
 const YES = 'YES';
 const NO = '--NO';
+const LOCALHOST = "localhost";
+
+// PATH
+const LAST_USED_FILE = '.lastUsed/';
+const RESULT_FILE = '.result/';
+
 const data = readFileSync('.config/appConfig.json');
 let appConfig = JSON.parse(data)
 let playerName = 'WY__';
 
-const sleep = (ms = 2000) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms = 1000) => new Promise((r) => setTimeout(r, ms));
 
 async function init () {
     // load config
@@ -60,7 +67,7 @@ async function getAnswersFromList(rewrite = false, questionName, options = [''])
     return answers.player_input;
 }
 
-async function getAnswersFromInput(rewrite = false, questionName) {
+async function getAnswersFromInput(rewrite = false, questionName, _default = "") {
     let message = 'What is ' + questionName + '?';
     if (rewrite) message = questionName
     let answers = await inquirer.prompt({
@@ -68,7 +75,7 @@ async function getAnswersFromInput(rewrite = false, questionName) {
         type: 'input',
         message: message,
         default() {
-            return '--';
+            return _default;
         },
     });
     return answers.player_input;
@@ -77,17 +84,22 @@ async function getAnswersFromInput(rewrite = false, questionName) {
 async function askQuestions(questionName) {
     let answers
     let qn = questionName.toUpperCase();
-
     if (qn === 'URL') {
         let protocol = await getAnswersFromList(false, 'Protocol', ['http', 'https']);
-        let domain = await getAnswersFromInput(false, 'Domain');
-        let portOption = await getAnswersFromList(false, 'Port', [NO, YES]);
+
+        let domain = await getAnswersFromInput(false, 'Domain', LOCALHOST);
+        let portOption
+        if (domain === LOCALHOST) {
+            portOption = await getAnswersFromList(false, 'Port', [YES, NO]);
+        } else {
+            portOption = await getAnswersFromList(false, 'Port', [NO, YES]);
+        }
         let port = ''
         if (YES === portOption) {
-            let portInput = await getAnswersFromInput(false, 'Port Number');
+            let portInput = await getAnswersFromInput(false, 'Port Number', "8080");
             port = ':' + portInput;
         }
-        let uri = await getAnswersFromInput(false, 'Uri');
+        let uri = await getAnswersFromInput(false, 'Uri', "/");
 
         let url = protocol + '://' + domain + port + uri;
         let confirm = await getAnswersFromList(true, 'Confirm the URL ?\n' + url, [YES, NO]);
@@ -104,12 +116,12 @@ async function askQuestions(questionName) {
     }
 
     if (qn === 'NUMBEROFCALL') {
-        answers = await getAnswersFromInput(false, questionName);
+        answers = await getAnswersFromInput(false, questionName, "1");
         return answers;
     }
 
     if (qn === 'PAYLOAD') {
-        answers = await getAnswersFromInput(false, questionName);
+        answers = await getAnswersFromInput(false, questionName, {});
         return answers;
     }
 
@@ -158,6 +170,9 @@ async function handleAnswer(answer) {
     }
     // print out setting____
     console.log('-- appConfig: ', appConfig)
+    // store the actionPlan in json that next time reuse
+    await printAndSaveResult(LAST_USED_FILE + "lastUsed" + '_result_', appConfig.actionPlan, "json")
+
 }
 
 async function actionTemplate(actionItem) {
@@ -167,12 +182,13 @@ async function actionTemplate(actionItem) {
         for (let i = 1; i <= info.numberOfCall; i++) {
             try {
                 if (info.method === 'GET') {
-                    response.push(await axios.get(info.url))
+                    console.log(i, ' ', info.method, 'call --')
+                    response.push((await axios.get(info.url)).data)
                 }
                 if (info.method === 'POST') {
                     let data = JSON.parse(info.payload);
-                    console.log(i, ' call -- with ', data)
-                    response.push(await axios.post(info.url, data));
+                    console.log(i, ' ', info.method, 'call -- with ', data)
+                    response.push((await axios.post(info.url, data)).data);
                 }
             } catch (e){
                 console.log(e)
@@ -184,15 +200,35 @@ async function actionTemplate(actionItem) {
 
 async function takeAction(actionItem) {
     console.log('-- TakeAction____', actionItem)
-    await actionTemplate(actionItem);
+    return await actionTemplate(actionItem);
 }
 
+function save(fileName, response) {
+    writeFileSync(fileName, response)
+}
+
+async function printAndSaveResult(fileName, responses, fileType = "json") {
+    const fileTypeMap = {
+        json: ".json",
+        txt: ".text"
+    }
+    fileName = fileName + moment().format('YYYYMMDDHHMMSS') + "__"+ fileTypeMap[fileType];
+    if (Array.isArray(responses)) {
+        for (const response of responses) {
+            save(fileName, JSON.stringify(response))
+        }
+    } else {
+        save(fileName, JSON.stringify(responses))
+    }
+}
 
 async function run() {
-    await init();
-    await welcome();
-    let answer = await askForFeatures();
-    await takeAction(appConfig.features[answer]);
+    await init()
+    await welcome()
+    let answer = await askForFeatures()
+    let featureKey = appConfig.features[answer];
+    let responses = await takeAction(featureKey)
+    await printAndSaveResult(RESULT_FILE + featureKey + '_result_', responses, "json")
 }
 
 // Run it with top-level await

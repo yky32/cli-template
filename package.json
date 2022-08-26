@@ -20,6 +20,7 @@
     "fs": "^0.0.1-security",
     "gradient-string": "^2.0.0",
     "inquirer": "^8.2.0",
+    "moment": "^2.29.4",
     "nanospinner": "^1.0.0"
   }
 }

@@ -13,12 +13,15 @@
 // */
 
 import chalk from 'chalk';
-import inquirer, {prompt} from 'inquirer';
+import inquirer  from 'inquirer';
 import chalkAnimation from 'chalk-animation';
 import {createSpinner} from 'nanospinner';
 import axios from "axios";
 import {readFileSync} from 'fs';
 
+
+const YES = 'YES';
+const NO = '--NO';
 const data = readFileSync('.config/appConfig.json');
 let appConfig = JSON.parse(data)
 let playerName = 'WY__';
@@ -42,33 +45,28 @@ async function welcome() {
     console.log(`
     ${chalk.bgBlue('HOW TO PLAY - Please select below')} 
     I am a process on your computer.
-  `);
+    `);
 }
 
-async function promptList() {
-    const answers = await inquirer.prompt(
-        {
-            name: "player_input",
-            type: 'list',
-            message: 'What is ' + questionName + '?',
-            choices: ['alligator', 'crocodile'],
-            default() {
-                return '--';
-        },
+async function getAnswersFromList(rewrite = false, questionName, options = ['']) {
+    let message = 'What is ' + questionName + '?';
+    if (rewrite) message = questionName
+    let answers = await inquirer.prompt({
+        name: "player_input",
+        type: 'list',
+        message: message,
+        choices: options,
     });
     return answers.player_input;
 }
 
-async function askQuestionForInput(questionName) {
-
-    if (questionName === 'METHOD') {
-
-    }
-
-    const answers = await inquirer.prompt({
+async function getAnswersFromInput(rewrite = false, questionName) {
+    let message = 'What is ' + questionName + '?';
+    if (rewrite) message = questionName
+    let answers = await inquirer.prompt({
         name: "player_input",
         type: 'input',
-        message: 'What is ' + questionName + '?',
+        message: message,
         default() {
             return '--';
         },
@@ -76,29 +74,73 @@ async function askQuestionForInput(questionName) {
     return answers.player_input;
 }
 
+async function askQuestions(questionName) {
+    let answers
+    let qn = questionName.toUpperCase();
+
+    if (qn === 'URL') {
+        let protocol = await getAnswersFromList(false, 'Protocol', ['http', 'https']);
+        let domain = await getAnswersFromInput(false, 'Domain');
+        let portOption = await getAnswersFromList(false, 'Port', [NO, YES]);
+        let port = ''
+        if (YES === portOption) {
+            let portInput = await getAnswersFromInput(false, 'Port Number');
+            port = ':' + portInput;
+        }
+        let uri = await getAnswersFromInput(false, 'Uri');
+
+        let url = protocol + '://' + domain + port + uri;
+        let confirm = await getAnswersFromList(true, 'Confirm the URL ?\n' + url, [YES, NO]);
+        if (YES !== confirm) {
+            await askQuestions('URL');
+        }
+        answers = url
+        return answers
+    }
+
+    if (qn === 'METHOD') {
+        answers = await getAnswersFromList(false, questionName, ['GET', 'POST']);
+        return answers;
+    }
+
+    if (qn === 'NUMBEROFCALL') {
+        answers = await getAnswersFromInput(false, questionName);
+        return answers;
+    }
+
+    if (qn === 'PAYLOAD') {
+        answers = await getAnswersFromInput(false, questionName);
+        return answers;
+    }
+
+    throw new Error("Error in asking Questions.")
+}
+
 async function askForFeatures() {
     const answers = await inquirer.prompt({
         name: 'choose_features',
         type: 'list',
         message: 'What you are going to do / check?\n',
-        choices: appConfig.features,
+        choices: Object.keys(appConfig.features),
     });
-    return handleAnswer(answers.choose_features);
+    await handleAnswer(answers.choose_features);
+    return answers.choose_features;
 }
 
 async function handleAnswer(answer) {
     console.log('-- you selected: ', answer)
     const spinner = createSpinner('Checking answer...').start();
     await sleep();
-    for (const feature of appConfig.features) {
-        if (feature.name === answer) {
-            spinner.success({text: `Nice work ${playerName}. That's a legit answer`});
-            appConfig.selected.push(feature.key)
-        } else {
-            spinner.error({text: `💀💀💀 Game over, thank you ${playerName}!`});
-            process.exit(1);
-        }
+
+    let feature = appConfig.features[answer]
+    if (feature) {
+        appConfig.selected.push(feature)
+        spinner.success({text: `Nice work ${playerName}. That's a legit answer`});
+    } else {
+        spinner.error({text: `💀💀💀 Game over, thank you ${playerName}!`});
+        process.exit(1);
     }
+
     // find question to ask
     let questions = []
     for (const key of appConfig.selected) {
@@ -107,7 +149,7 @@ async function handleAnswer(answer) {
     }
     for (const key of appConfig.selected) {
         for (const question of questions) {
-            let answer = await askQuestionForInput(question);
+            let answer = await askQuestions(question);
             if (answer) {
                 let answerObject = appConfig.actionPlan[key]
                 answerObject[question] = answer
@@ -118,29 +160,41 @@ async function handleAnswer(answer) {
     console.log('-- appConfig: ', appConfig)
 }
 
-async function takeAction() {
-    for (const key of appConfig.selected) {
-        if (key=== 'api') {
-            let config = appConfig.actionPlan[key]
-            for (let i = 0; i < config.numberOfCall; i++) {
-                let response
-                if (config.method === 'GET') {
-                    response = await axios.get(config.url);
-                    if (response) console.log(response.data)
-                } else if (config.method === 'POST') {
-                    response = await axios.post(config.url, config.payload);
-                } else {
-                    // invalid method
+async function actionTemplate(actionItem) {
+    let info = appConfig.actionPlan[actionItem];
+    let response = []
+    if (actionItem === 'api') {
+        for (let i = 1; i <= info.numberOfCall; i++) {
+            try {
+                if (info.method === 'GET') {
+                    response.push(await axios.get(info.url))
                 }
+                if (info.method === 'POST') {
+                    let data = JSON.parse(info.payload);
+                    console.log(i, ' call -- with ', data)
+                    response.push(await axios.post(info.url, data));
+                }
+            } catch (e){
+                console.log(e)
             }
         }
     }
+    return response
+}
+
+async function takeAction(actionItem) {
+    console.log('-- TakeAction____', actionItem)
+    await actionTemplate(actionItem);
 }
 
 
+async function run() {
+    await init();
+    await welcome();
+    let answer = await askForFeatures();
+    await takeAction(appConfig.features[answer]);
+}
+
 // Run it with top-level await
 console.clear();
-await init();
-await welcome();
-await askForFeatures(); // also askQuestions
-await takeAction();
+run().then(r => {});

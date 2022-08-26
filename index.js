@@ -5,7 +5,7 @@ import inquirer from 'inquirer';
 import chalkAnimation from 'chalk-animation';
 import {createSpinner} from 'nanospinner';
 import axios from "axios";
-import {readFileSync, writeFileSync} from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import moment from "moment";
 
 // GLOBAL VARIABLE __
@@ -14,9 +14,9 @@ const NO = '--NO';
 const LOCALHOST = "localhost";
 
 // PATH
-const LAST_USED_FILE = '.lastUsed/';
-const RESULT_FILE = '.result/';
-const LAST_USE_FILE = LAST_USED_FILE + 'lastUsed.json';
+const LAST_USED_PATH = '.lastUsed/';
+const RESULT_FILE_PATH = '.result/';
+const LAST_USE_FILE = LAST_USED_PATH + 'lastUsed.json';
 
 const data = readFileSync('.config/appConfig.json');
 let appConfig = JSON.parse(data)
@@ -188,8 +188,11 @@ async function handleAnswer(answer) {
     appConfig.actionPlan.last = featureKey
     let timeslot = moment().format('YYYYMMDDHHMMSS');
     let lastUse = {}
+    if (existsSync(LAST_USE_FILE)) {
+        lastUse = load(LAST_USE_FILE)
+    }
     lastUse[timeslot] = appConfig.actionPlan
-    await save(LAST_USED_FILE + '/lastUsed.json', lastUse)
+    await save(LAST_USED_PATH + '/lastUsed.json', lastUse)
 }
 
 async function actionTemplate(info, featureKey) {
@@ -272,7 +275,7 @@ async function run() {
     await welcome()
     let answer = await askForFeatures()
     let result = await takeAction(answer)
-    await printAndSaveResult(RESULT_FILE + result.featureKey + '_result_', result.responses, "json")
+    await printAndSaveResult(RESULT_FILE_PATH + result.featureKey + '_result_', result.responses, "json")
 }
 
 // Run it with top-level await

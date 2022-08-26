@@ -1,6 +1,6 @@
 {
   "features": {
-    "Last Chosen Feature": "last",
+    "From History": "last",
     "Make a REST call": "api"
   },
   "featureMapping": {},
